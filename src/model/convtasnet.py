@@ -57,10 +57,10 @@ class Encoder(nn.Module):
             kernel_size=self.kernel_size,
             bias=False,
             stride=self.stride,
-            padding=0,
+            padding=(0,0),
             dilation=1,
         )
-
+    
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         """
         Args:
@@ -69,18 +69,6 @@ class Encoder(nn.Module):
         Returns:
             A [Batch, N, L'] tensor
         """
-        # Sometime input may have shape [Batch, L], we need to add a channel dimension.
-        # This additional channel should be inserted at dim 1, so that the input to conv1d has shape [B, 1, L].
-        # Conv1d will otherwise add a channel dimension at the beginning, which is not what we want
-        # as the first dimension is the batch dimension.
-
-        # if input.dim() not in [2, 3]:
-        #     raise RuntimeError(
-        #         f"Input should have dimensions 2 or 3 (shape [Batch, L] or [Batch, 1, L]). Received shape: {input.shape}",
-        #     )
-
-        # if input.dim() == 2:
-        #     input = input.unsqueeze(1)
 
         return self.conv1d(input)
 
@@ -223,6 +211,8 @@ class ConvolutionalBlock1D(nn.Module):
             kernel_size=1,
         )
 
+        self.K = kernel_size
+        self.D = dilation
     def forward(self, input: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -237,6 +227,7 @@ class ConvolutionalBlock1D(nn.Module):
         output = self.nonlinearity1(output)
         output = self.normalization1(output)
 
+        output = F.pad(output, ((self.K - 1) * self.D, 0))
         output = self.dconv(output)
 
         output = self.nonlinearity2(output)
@@ -308,6 +299,8 @@ class TCN(nn.Module):
             raise NotImplementedError("Cummulative Layer Norm is not implemented.")
         elif norm_type == NormType.global_layer_norm:
             self.layer_norm = GlobalLayerNorm(channel_size=input_dim)
+        elif norm_type == NormType.batch_norm:
+            self.layer_norm = torch.nn.BatchNorm1d(input_dim)
 
         self.bottleneck_layer = nn.Conv1d(
             in_channels=input_dim,
@@ -328,7 +321,7 @@ class TCN(nn.Module):
                     skip_channels=skip_dim,
                     kernel_size=kernel_size,
                     # TODO: we may need to compute a different padding depending on the stride
-                    padding=dilation,
+                    padding=0,
                     dilation=dilation,
                     norm_type=norm_type,
                 )
@@ -484,33 +477,18 @@ class ConvTasNet(nn.Module):
         """
         return self.tcn.receptive_field
 
-    def pad_signal(self, input):
-        # From Paper implementation
-
-        # input is the waveforms: (B, T) or (B, 1, T)
-        # reshape and padding
-        # if input.dim() not in [2, 3]:
-        #     raise RuntimeError("Input can only be 2 or 3 dimensional.")
-
-        # if input.dim() == 2:
-        input = input.unsqueeze(1)
-
-        nsample = input.size(2)
-        rest = (
-            self.encoder_kernel_size
-            - (self.stride + nsample % self.encoder_kernel_size)
-            % self.encoder_kernel_size
-        )
-        # if rest > 0:
-        input = F.pad(input, (0, rest))
-
-        input = F.pad(input, (self.stride, self.stride))
-
-        return input, rest
+    def pad_signal(self, x):
+        x = x.unsqueeze(1) if x.dim() == 2 else x
+        n = x.size(-1)
+        P = self.encoder_kernel_size - self.stride          # 32 left pad = streaming buffer size
+        R0 = (-n) % self.stride                             # align length to the stride
+        x = F.pad(x, (P, P + R0))                           # (P, 32 + R0)
+        return x, R0
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # Input: [Batch, L] or [Batch, 1, L]
-
+        P = self.encoder_kernel_size - self.stride
+        n = input.size(-1)
         # First we pad
         padded_input, rest = self.pad_signal(input)
 
@@ -536,7 +514,7 @@ class ConvTasNet(nn.Module):
 
         # We remove extra
         # See the paper implementation
-        output = dec_output[:, :, self.stride : -(rest + self.stride)].contiguous()
+        output = dec_output[:, :, P : P + n].contiguous()
         output = output.view(batch_size, n_src, -1)
         # output shape: [Batch, n_src, L]
         return output
