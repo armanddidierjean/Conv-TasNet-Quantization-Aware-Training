@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import yaml
 
-from model.norm import GlobalLayerNorm, NormType
+from model.norm import GlobalLayerNorm, NormType, cLN
 from utils.conf import Conf
 
 """
@@ -57,7 +57,7 @@ class Encoder(nn.Module):
             kernel_size=self.kernel_size,
             bias=False,
             stride=self.stride,
-            padding=(0,0),
+            padding=(0),
             dilation=1,
         )
     
@@ -177,7 +177,7 @@ class ConvolutionalBlock1D(nn.Module):
 
         self.nonlinearity1 = nn.PReLU()
         if norm_type == NormType.channel_layer_norm:
-            raise NotImplementedError("Cummulative Layer Norm is not implemented.")
+            self.normalization1 = cLN(hidden_channels)
         elif norm_type == NormType.global_layer_norm:
             self.normalization1 = GlobalLayerNorm(channel_size=hidden_channels)
         elif norm_type == NormType.batch_norm:
@@ -194,7 +194,7 @@ class ConvolutionalBlock1D(nn.Module):
 
         self.nonlinearity2 = nn.PReLU()
         if norm_type == NormType.channel_layer_norm:
-            raise NotImplementedError("Cummulative Layer Norm is not implemented.")
+            self.normalization2 = cLN(hidden_channels)
         elif norm_type == NormType.global_layer_norm:
             self.normalization2 = GlobalLayerNorm(channel_size=hidden_channels)
         elif norm_type == NormType.batch_norm:
@@ -296,7 +296,7 @@ class TCN(nn.Module):
 
         # TODO: support multiple type of normalization
         if norm_type == NormType.channel_layer_norm:
-            raise NotImplementedError("Cummulative Layer Norm is not implemented.")
+            self.layer_norm = cLN(input_dim)
         elif norm_type == NormType.global_layer_norm:
             self.layer_norm = GlobalLayerNorm(channel_size=input_dim)
         elif norm_type == NormType.batch_norm:
