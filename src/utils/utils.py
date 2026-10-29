@@ -59,21 +59,24 @@ def get_data_loaders(
         segment=conf.data.segment,
     )
 
-    train_loader = DataLoader(
-        train_set,
-        shuffle=True,
-        batch_size=conf.training.batch_size,
-        num_workers=conf.training.num_workers,
-        drop_last=True,
-    )
+    num_workers = conf.training.num_workers
+    has_workers = num_workers > 0
 
-    val_loader = DataLoader(
-        val_set,
-        shuffle=False,
+    # These options are only valid / useful when worker processes are used
+    loader_kwargs = dict(
         batch_size=conf.training.batch_size,
-        num_workers=conf.training.num_workers,
+        num_workers=num_workers,
         drop_last=True,
+        pin_memory=torch.cuda.is_available(),
     )
+    if has_workers:
+        loader_kwargs.update(
+            persistent_workers=True,  # don't respawn workers every epoch
+            prefetch_factor=4,  # batches pre-loaded per worker
+        )
+
+    train_loader = DataLoader(train_set, shuffle=True, **loader_kwargs)
+    val_loader = DataLoader(val_set, shuffle=False, **loader_kwargs)
 
     return train_loader, val_loader
 
