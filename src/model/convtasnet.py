@@ -224,14 +224,14 @@ class ConvolutionalBlock1D(nn.Module):
             skip:   [Batch, Sc, L]
         """
         output = self.conv1d(input)
-        output = self.nonlinearity1(output)
         output = self.normalization1(output)
+        output = self.nonlinearity1(output)
 
         output = F.pad(output, ((self.K - 1) * self.D, 0))
         output = self.dconv(output)
 
-        output = self.nonlinearity2(output)
         output = self.normalization2(output)
+        output = self.nonlinearity2(output)
 
         skip = self.skip_conv1d(output)
         residual = self.out_conv1d(output)
