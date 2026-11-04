@@ -116,16 +116,21 @@ def train(conf: Conf, resume_from: None | str = None):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print(__doc__)
-        sys.exit(1)
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+    parser.add_argument("config", type=str)
+    parser.add_argument("--config_dir", type=str, default=".")
+    parser.add_argument("--resume_from", type=str, default=None)
 
-    model_archi = sys.argv[1]
-    resume_from = sys.argv[2] if len(sys.argv) == 3 else None
+    args = parser.parse_args()
+
+    
+    model_archi = args.config
+    resume_from = args.resume_from
 
     print(f"Using model architecture: {model_archi}")
 
-    CONF_PATH = f"conf_{model_archi}.yml"
+    CONF_PATH = os.path.join(args.config_dir, f"conf_{model_archi}.yml")
     with open(CONF_PATH) as f:
         conf_data = yaml.safe_load(f)
 

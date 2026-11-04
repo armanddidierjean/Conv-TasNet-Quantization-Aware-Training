@@ -146,9 +146,14 @@ def load_trained_model(
     compile: bool = False,
     strict_load_state_dict: bool = True,
     config_name: str | None = None,
+    trained_model: str | None = None,
 ) -> ConvTasNet | QuantizeWrapper[ConvTasNet]:
     exp_dir = conf.exp_dir
-    trained_model = os.path.join(exp_dir, "compiled_model.pth")
+    trained_model = (
+        os.path.join(exp_dir, "compiled_model.pth")
+        if trained_model is None
+        else trained_model
+    )
 
     model: ConvTasNet = construct_model(conf=conf)
     # model = quantize_model(model)
@@ -174,9 +179,20 @@ def load_trained_model(
             raise ValueError(
                 "The state dict contains keys with 'module._orig_mod.', which indicates that a compiled model was quantized instead of compiling a quantized model"
             )
+    if "state_dict" in state_dict:
+        print("[WARN]: loading model from checkpoint")
+        state_dict = state_dict["state_dict"]
 
     if compile:
         model: ConvTasNet = torch.compile(model)
+        for key in state_dict.keys():
+            if "model._orig_mod" in key:
+                state_dict = {
+                    k.replace("model._orig_mod.", "_orig_mod."): v
+                    for k, v in state_dict.items()
+                }
+                break
+
     else:
         state_dict = {k.replace("_orig_mod.", ""): v for k, v in state_dict.items()}
 
