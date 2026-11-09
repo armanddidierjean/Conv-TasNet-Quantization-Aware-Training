@@ -1,0 +1,58 @@
+# Encoder/Decoder config
+encoder:
+  # N: Number of filters in autoencoder
+  n_filters: 512
+  # Kernel size of the encoder/decoder
+  encoder_kernel_size: 40
+  # Usually P//2, correspond to 50% overlap between consecutive frames
+  encoder_stride: 8
+# Masker network config
+masknet:
+  # B: Dimension of the bottleneck layer
+  bottleneck_dim: 128
+  # H: Dimension of the hidden layers
+  hidden_dim: 512
+  # Sc: Dimension of the skip connection
+  skip_dim: 128
+  # P: kernel size of the depth-wise convolution
+  # Note: currently the value 1 raise an error
+  kernel_size: 3
+  # R: number of layers in the TCN
+  nb_layers: 6
+  # X (M in some equations): number of convolutional blocks per layer
+  nb_conv_blocks_per_layer: 4
+  #
+  norm_type: batch_norm
+
+# Training config
+training:
+  epochs: 200
+  batch_size: 64
+  num_workers: 8
+  half_lr: yes
+  # We may want to enable early stopping
+  # TODO: try with false?
+  early_stop: yes
+  seed: 0
+
+# Optim config
+optim:
+  # We use Adam
+  #optimizer: adam
+  # 1e-3
+  lr: 0.001
+  weight_decay: 0.
+# Data config
+data:
+  task: sep_clean
+  sample_rate: 8000
+  n_src: 2
+  # 4s segments
+  segment: 2
+  metadata_dir: ../LibriMix/dataset/Libri2Mix/wav8k/min/metadata/
+
+quantize:
+  epochs: 30
+
+# Without a trailing slash
+exp_dir: ./exp/ConvTasNet_0.5_bn_v2
